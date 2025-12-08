@@ -48,14 +48,42 @@ Before you begin, ensure you have the following installed:
 
 - **Python 3.12+** - [Download Python](https://www.python.org/downloads/)
 - **Node.js 18+** - [Download Node.js](https://nodejs.org/)
-- **Poetry** (Python package manager) - Install with:
-  ```bash
-  curl -sSL https://install.python-poetry.org | python3 -
-  ```
+- **Poetry** (Python package manager)
 - **Git** - [Download Git](https://git-scm.com/downloads)
+
+### Installing Poetry
+
+**Windows (PowerShell):**
+```powershell
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+```
+
+**Linux/macOS (Terminal):**
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+```
+
+After installation, add Poetry to your PATH:
+
+**Windows:** Poetry is typically installed to `%APPDATA%\Python\Scripts`. Add this to your system PATH or restart your terminal.
+
+**Linux/macOS:** Add to your shell profile (~/.bashrc, ~/.zshrc, etc.):
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
 
 ### Verify Installation
 
+**Windows (Command Prompt or PowerShell):**
+```cmd
+python --version     # Should show 3.12 or higher
+node --version       # Should show 18 or higher
+npm --version        # Should show 9 or higher
+poetry --version     # Should show 1.x or higher
+git --version        # Should show 2.x or higher
+```
+
+**Linux/macOS:**
 ```bash
 python3 --version    # Should show 3.12 or higher
 node --version       # Should show 18 or higher
@@ -125,6 +153,17 @@ npm install
 
 Create a `.env` file in the frontend directory:
 
+**Windows (PowerShell):**
+```powershell
+echo "VITE_API_URL=http://localhost:8000" > .env
+```
+
+**Windows (Command Prompt):**
+```cmd
+echo VITE_API_URL=http://localhost:8000 > .env
+```
+
+**Linux/macOS:**
 ```bash
 echo "VITE_API_URL=http://localhost:8000" > .env
 ```
@@ -172,9 +211,9 @@ poetry run fastapi dev app/main.py --host 0.0.0.0 --port 8000
 ```bash
 cd frontend
 npm install
-echo "VITE_API_URL=http://localhost:8000" > .env
 npm run dev
 ```
+Note: Create the `.env` file with `VITE_API_URL=http://localhost:8000` before running (see Step 3 for platform-specific commands).
 
 ### Access Points
 - **Frontend**: http://localhost:5173
@@ -188,6 +227,16 @@ npm run dev
 ### Backend Issues
 
 **Port 8000 already in use:**
+
+Windows (PowerShell):
+```powershell
+# Find process using port 8000
+netstat -ano | findstr :8000
+# Kill the process (replace <PID> with the actual process ID)
+taskkill /PID <PID> /F
+```
+
+Linux/macOS:
 ```bash
 # Find and kill the process using port 8000
 lsof -i :8000
@@ -195,6 +244,10 @@ kill -9 <PID>
 ```
 
 **Poetry not found:**
+
+Windows: Restart your terminal or add `%APPDATA%\Python\Scripts` to your system PATH.
+
+Linux/macOS:
 ```bash
 # Add Poetry to PATH
 export PATH="$HOME/.local/bin:$PATH"
@@ -203,24 +256,36 @@ export PATH="$HOME/.local/bin:$PATH"
 **Python version issues:**
 ```bash
 # Check Python version
-python3 --version
-
-# If using pyenv, set the correct version
-pyenv local 3.12
+python --version      # Windows
+python3 --version     # Linux/macOS
 ```
 
 ### Frontend Issues
 
 **Port 5173 already in use:**
+
+Windows (PowerShell):
+```powershell
+netstat -ano | findstr :5173
+taskkill /PID <PID> /F
+```
+
+Linux/macOS:
 ```bash
-# Find and kill the process using port 5173
 lsof -i :5173
 kill -9 <PID>
 ```
 
 **Node modules issues:**
+
+Windows (PowerShell):
+```powershell
+Remove-Item -Recurse -Force node_modules
+npm install
+```
+
+Linux/macOS:
 ```bash
-# Remove node_modules and reinstall
 rm -rf node_modules
 npm install
 ```
