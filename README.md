@@ -38,289 +38,204 @@ employee-portal/
 
 ---
 
-# AWS Hosting Guide
+# Local Hosting Guide
 
-This guide explains how to deploy the Employee Portal on AWS.
+This guide explains how to run the Employee Portal locally on your machine.
 
-## Architecture Overview
+## Prerequisites
 
-- **Backend**: EC2 instance running FastAPI with Uvicorn
-- **Frontend**: S3 bucket with CloudFront distribution (or EC2)
-- **Database**: In-memory (for demo) or RDS PostgreSQL (for production)
+Before you begin, ensure you have the following installed:
+
+- **Python 3.12+** - [Download Python](https://www.python.org/downloads/)
+- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
+- **Poetry** (Python package manager) - Install with:
+  ```bash
+  curl -sSL https://install.python-poetry.org | python3 -
+  ```
+- **Git** - [Download Git](https://git-scm.com/downloads)
+
+### Verify Installation
+
+```bash
+python3 --version    # Should show 3.12 or higher
+node --version       # Should show 18 or higher
+npm --version        # Should show 9 or higher
+poetry --version     # Should show 1.x or higher
+git --version        # Should show 2.x or higher
+```
 
 ---
 
-## Option 1: EC2 Deployment (Recommended for Testing)
-
-### Prerequisites
-
-- AWS Account with EC2 access
-- SSH key pair created in AWS
-- Security group allowing ports 22 (SSH), 80 (HTTP), 443 (HTTPS), 8000 (API)
-
-### Step 1: Launch EC2 Instance
-
-1. Go to AWS Console > EC2 > Launch Instance
-2. Choose **Ubuntu Server 22.04 LTS** AMI
-3. Select instance type: **t2.medium** (minimum recommended)
-4. Configure security group:
-   - SSH (22) - Your IP
-   - HTTP (80) - Anywhere
-   - HTTPS (443) - Anywhere
-   - Custom TCP (8000) - Anywhere (for API)
-   - Custom TCP (5173) - Anywhere (for frontend dev)
-5. Launch with your SSH key pair
-
-### Step 2: Connect to EC2 Instance
+## Step 1: Clone the Repository
 
 ```bash
-ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
+git clone https://github.com/arica-sudo/employee-portal-vapt.git
+cd employee-portal-vapt
 ```
 
-### Step 3: Install Dependencies
+---
+
+## Step 2: Setup and Run the Backend
+
+Open a terminal and navigate to the backend directory:
 
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Python 3.12
-sudo apt install -y software-properties-common
-sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt install -y python3.12 python3.12-venv python3.12-dev
-
-# Install Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Install Poetry
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Add Poetry to PATH
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-
-# Install Nginx (reverse proxy)
-sudo apt install -y nginx
-
-# Install Git
-sudo apt install -y git
+cd backend
 ```
 
-### Step 4: Clone Repository
+### Install Python Dependencies
 
 ```bash
-cd ~
-git clone https://github.com/<YOUR-USERNAME>/employee-portal.git
-cd employee-portal
-```
-
-### Step 5: Setup Backend
-
-```bash
-cd ~/employee-portal/backend
-
-# Install dependencies
 poetry install
+```
 
-# Create environment file (optional)
-echo 'SECRET_KEY=your-production-secret-key-here' > .env
+This will create a virtual environment and install all required packages.
 
-# Test the backend
+### Start the Backend Server
+
+```bash
 poetry run fastapi dev app/main.py --host 0.0.0.0 --port 8000
-# Press Ctrl+C to stop after testing
 ```
 
-### Step 6: Setup Frontend
+The backend will start on `http://localhost:8000`
+
+You can verify it's running by visiting:
+- Health check: http://localhost:8000/healthz
+- API Documentation: http://localhost:8000/docs
+
+**Keep this terminal open** - the backend needs to keep running.
+
+---
+
+## Step 3: Setup and Run the Frontend
+
+Open a **new terminal** and navigate to the frontend directory:
 
 ```bash
-cd ~/employee-portal/frontend
+cd frontend
+```
 
-# Install dependencies
+### Install Node.js Dependencies
+
+```bash
 npm install
-
-# Create environment file with your EC2 public IP
-echo "VITE_API_URL=http://<EC2-PUBLIC-IP>:8000" > .env
-
-# Build for production
-npm run build
 ```
 
-### Step 7: Configure Nginx
+### Configure the API URL
+
+Create a `.env` file in the frontend directory:
 
 ```bash
-sudo nano /etc/nginx/sites-available/employee-portal
+echo "VITE_API_URL=http://localhost:8000" > .env
 ```
 
-Add the following configuration:
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-
-    # Frontend
-    location / {
-        root /home/ubuntu/employee-portal/frontend/dist;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Backend API
-    location /api {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Health check
-    location /healthz {
-        proxy_pass http://127.0.0.1:8000;
-    }
-}
-```
-
-Enable the site:
+### Start the Frontend Development Server
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/employee-portal /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl restart nginx
+npm run dev
 ```
 
-### Step 8: Create Systemd Service for Backend
-
-```bash
-sudo nano /etc/systemd/system/employee-portal-api.service
-```
-
-Add:
-
-```ini
-[Unit]
-Description=Employee Portal API
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu/employee-portal/backend
-Environment="PATH=/home/ubuntu/.local/bin:/usr/bin"
-ExecStart=/home/ubuntu/.local/bin/poetry run uvicorn app.main:app --host 127.0.0.1 --port 8000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable employee-portal-api
-sudo systemctl start employee-portal-api
-sudo systemctl status employee-portal-api
-```
-
-### Step 9: Access the Application
-
-Open your browser and navigate to:
-- Frontend: `http://<EC2-PUBLIC-IP>`
-- API Docs: `http://<EC2-PUBLIC-IP>/api/docs`
+The frontend will start on `http://localhost:5173`
 
 ---
 
-## Option 2: S3 + CloudFront (Frontend) + EC2 (Backend)
+## Step 4: Access the Application
 
-For production, you may want to serve the frontend from S3 with CloudFront.
+Open your web browser and navigate to:
 
-### Frontend on S3
+**http://localhost:5173**
 
-1. Create S3 bucket with static website hosting enabled
-2. Upload the `frontend/dist` folder contents
-3. Create CloudFront distribution pointing to S3
-4. Update VITE_API_URL to point to your backend EC2
+You should see the Acme Corp Employee Portal login page.
 
-### Backend on EC2
+### Login with Test Accounts
 
-Follow Steps 1-5 and 8 from Option 1.
+Use one of the default accounts to log in:
 
----
-
-## Option 3: Elastic Beanstalk
-
-### Backend
-
-1. Create `Procfile` in backend directory:
-   ```
-   web: uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
-
-2. Create Elastic Beanstalk environment with Python platform
-3. Deploy using EB CLI or console
-
-### Frontend
-
-1. Build frontend: `npm run build`
-2. Deploy to S3 or Amplify
+| Email | Password | Role |
+|-------|----------|------|
+| admin@acmecorp.com | admin123 | Admin |
+| john.doe@acmecorp.com | password123 | Employee |
+| jane.smith@acmecorp.com | password123 | Manager |
 
 ---
 
-## Security Considerations
+## Running Both Services (Quick Reference)
 
-For production deployment, consider:
+### Terminal 1 - Backend
+```bash
+cd backend
+poetry install
+poetry run fastapi dev app/main.py --host 0.0.0.0 --port 8000
+```
 
-1. **HTTPS**: Use AWS Certificate Manager with CloudFront or Let's Encrypt with Nginx
-2. **Environment Variables**: Store secrets in AWS Secrets Manager or Parameter Store
-3. **Database**: Use RDS PostgreSQL instead of in-memory storage
-4. **WAF**: Enable AWS WAF for additional protection
-5. **VPC**: Deploy in a private VPC with proper security groups
+### Terminal 2 - Frontend
+```bash
+cd frontend
+npm install
+echo "VITE_API_URL=http://localhost:8000" > .env
+npm run dev
+```
+
+### Access Points
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
 
 ---
 
 ## Troubleshooting
 
-### Backend not starting
-```bash
-# Check logs
-sudo journalctl -u employee-portal-api -f
+### Backend Issues
 
-# Check if port is in use
-sudo lsof -i :8000
+**Port 8000 already in use:**
+```bash
+# Find and kill the process using port 8000
+lsof -i :8000
+kill -9 <PID>
 ```
 
-### Frontend not loading
+**Poetry not found:**
 ```bash
-# Check Nginx logs
-sudo tail -f /var/log/nginx/error.log
-
-# Verify build files exist
-ls -la ~/employee-portal/frontend/dist
+# Add Poetry to PATH
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-### CORS issues
-Ensure the backend CORS settings allow your frontend domain.
-
----
-
-## Local Development
-
-### Backend
+**Python version issues:**
 ```bash
-cd backend
-poetry install
-poetry run fastapi dev app/main.py
+# Check Python version
+python3 --version
+
+# If using pyenv, set the correct version
+pyenv local 3.12
 ```
 
-### Frontend
+### Frontend Issues
+
+**Port 5173 already in use:**
 ```bash
-cd frontend
+# Find and kill the process using port 5173
+lsof -i :5173
+kill -9 <PID>
+```
+
+**Node modules issues:**
+```bash
+# Remove node_modules and reinstall
+rm -rf node_modules
 npm install
-npm run dev
 ```
+
+**API connection errors:**
+- Ensure the backend is running on port 8000
+- Check that `.env` file contains `VITE_API_URL=http://localhost:8000`
+- Restart the frontend after changing `.env`
+
+### CORS Issues
+
+If you see CORS errors in the browser console, ensure:
+1. Backend is running on `http://localhost:8000`
+2. Frontend `.env` has the correct `VITE_API_URL`
+3. Both services are running
 
 ---
 
@@ -330,11 +245,54 @@ npm run dev
 |--------|----------|-------------|
 | POST | /api/auth/login | User login |
 | POST | /api/auth/register | User registration |
-| GET | /api/users/me | Get current user |
-| GET | /api/announcements | List announcements |
-| POST | /api/files/upload | Upload file |
+| POST | /api/auth/password-reset | Request password reset |
+| GET | /api/users/me | Get current user profile |
+| PUT | /api/users/me | Update current user profile |
+| GET | /api/announcements | List all announcements |
+| POST | /api/announcements | Create announcement (admin/manager) |
+| DELETE | /api/announcements/{id} | Delete announcement (admin/manager) |
+| GET | /api/files | List uploaded files |
+| POST | /api/files/upload | Upload a file |
+| GET | /api/files/download/{id} | Download a file |
+| DELETE | /api/files/{id} | Delete a file |
 | GET | /api/support/tickets | List support tickets |
-| GET | /api/admin/users | List all users (admin) |
+| POST | /api/support/tickets | Create support ticket |
+| PUT | /api/support/tickets/{id} | Update ticket status (admin/manager) |
+| GET | /api/admin/users | List all users (admin/manager) |
+| PUT | /api/admin/users/{id} | Update user (admin) |
+| DELETE | /api/admin/users/{id} | Deactivate user (admin) |
 | GET | /api/admin/audit-logs | View audit logs (admin) |
+| GET | /api/admin/export | Export data (admin) |
+| GET | /api/dashboard/stats | Get dashboard statistics |
+| GET | /api/search | Search across the application |
+| GET | /api/debug/info | Debug information |
 
-Full API documentation available at `/docs` when running the backend.
+Full interactive API documentation is available at `http://localhost:8000/docs` when the backend is running.
+
+---
+
+## Building for Production
+
+### Frontend Production Build
+
+```bash
+cd frontend
+npm run build
+```
+
+This creates a `dist` folder with optimized static files.
+
+### Backend Production Mode
+
+```bash
+cd backend
+poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+## Notes
+
+- The application uses an **in-memory database**, so all data will be reset when the backend restarts
+- File uploads are stored in `/tmp/uploads` and will be lost on system restart
+- The default JWT secret key is hardcoded for demo purposes
